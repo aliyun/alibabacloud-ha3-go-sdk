@@ -1,4 +1,4 @@
-module github.com/aliyun/alibabacloud-Ha3-go-sdk
+module github.com/aliyun/alibabacloud-ha3-go-sdk
 
 require (
 	github.com/alibabacloud-go/tea-utils v1.4.3
