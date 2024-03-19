@@ -1,4 +1,4 @@
-module github.com/aliyun/alibabacloud-ha3-sdk/golang
+module github.com/aliyun/alibabacloud-ha3-go-sdk
 
 go 1.21.0
 
