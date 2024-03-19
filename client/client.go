@@ -16,6 +16,7 @@ type Config struct {
 	AccessUserName *string `json:"accessUserName,omitempty" xml:"accessUserName,omitempty"`
 	AccessPassWord *string `json:"accessPassWord,omitempty" xml:"accessPassWord,omitempty"`
 	UserAgent      *string `json:"userAgent,omitempty" xml:"userAgent,omitempty"`
+	HttpProxy      *string `json:"httpProxy,omitempty" xml:"httpProxy,omitempty"`
 }
 
 func (s Config) String() string {
@@ -53,6 +54,11 @@ func (s *Config) SetAccessPassWord(v string) *Config {
 
 func (s *Config) SetUserAgent(v string) *Config {
 	s.UserAgent = &v
+	return s
+}
+
+func (s *Config) SetHttpProxy(v string) *Config {
+	s.HttpProxy = &v
 	return s
 }
 
@@ -369,6 +375,8 @@ type SearchRequestModel struct {
 	Headers map[string]*string `json:"headers,omitempty" xml:"headers,omitempty"`
 	// query
 	Query *SearchQuery `json:"query,omitempty" xml:"query,omitempty" require:"true"`
+	// body
+	Body *string `json:"body,omitempty" xml:"body,omitempty"`
 }
 
 func (s SearchRequestModel) String() string {
@@ -386,6 +394,11 @@ func (s *SearchRequestModel) SetHeaders(v map[string]*string) *SearchRequestMode
 
 func (s *SearchRequestModel) SetQuery(v *SearchQuery) *SearchRequestModel {
 	s.Query = v
+	return s
+}
+
+func (s *SearchRequestModel) SetBody(v string) *SearchRequestModel {
+	s.Body = &v
 	return s
 }
 
@@ -411,6 +424,31 @@ func (s *SearchResponseModel) SetHeaders(v map[string]*string) *SearchResponseMo
 
 func (s *SearchResponseModel) SetBody(v string) *SearchResponseModel {
 	s.Body = &v
+	return s
+}
+
+type SearchBytesResponseModel struct {
+	// headers
+	Headers map[string]*string `json:"headers,omitempty" xml:"headers,omitempty"`
+	// body
+	Body []byte `json:"body,omitempty" xml:"body,omitempty" require:"true"`
+}
+
+func (s SearchBytesResponseModel) String() string {
+	return tea.Prettify(s)
+}
+
+func (s SearchBytesResponseModel) GoString() string {
+	return s.String()
+}
+
+func (s *SearchBytesResponseModel) SetHeaders(v map[string]*string) *SearchBytesResponseModel {
+	s.Headers = v
+	return s
+}
+
+func (s *SearchBytesResponseModel) SetBody(v []byte) *SearchBytesResponseModel {
+	s.Body = v
 	return s
 }
 
@@ -471,6 +509,7 @@ type Client struct {
 	UserAgent    *string
 	Credential   *string
 	Domainsuffix *string
+	HttpProxy    *string
 }
 
 func NewClient(config *Config) (*Client, error) {
@@ -494,6 +533,7 @@ func (client *Client) Init(config *Config) (_err error) {
 	client.Protocol = config.Protocol
 	client.UserAgent = config.UserAgent
 	client.Domainsuffix = tea.String("ha.aliyuncs.com")
+	client.HttpProxy = config.HttpProxy
 	return nil
 }
 
@@ -621,6 +661,131 @@ func (client *Client) _request(method *string, pathname *string, query map[strin
 	return _resp, _err
 }
 
+func (client *Client) _request_search_bytes(method *string, pathname *string, query map[string]interface{}, headers map[string]*string, body interface{}, runtime *util.RuntimeOptions) (_result map[string]interface{}, _err error) {
+	_err = tea.Validate(runtime)
+	if _err != nil {
+		return _result, _err
+	}
+	_runtime := map[string]interface{}{
+		"timeouted":      "retry",
+		"readTimeout":    tea.IntValue(runtime.ReadTimeout),
+		"connectTimeout": tea.IntValue(runtime.ConnectTimeout),
+		"httpProxy":      tea.StringValue(runtime.HttpProxy),
+		"httpsProxy":     tea.StringValue(runtime.HttpsProxy),
+		"noProxy":        tea.StringValue(runtime.NoProxy),
+		"maxIdleConns":   tea.IntValue(runtime.MaxIdleConns),
+		"retry": map[string]interface{}{
+			"retryable":   tea.BoolValue(runtime.Autoretry),
+			"maxAttempts": tea.IntValue(util.DefaultNumber(runtime.MaxAttempts, tea.Int(5))),
+		},
+		"backoff": map[string]interface{}{
+			"policy": tea.StringValue(util.DefaultString(runtime.BackoffPolicy, tea.String("no"))),
+			"period": tea.IntValue(util.DefaultNumber(runtime.BackoffPeriod, tea.Int(1))),
+		},
+		"ignoreSSL": tea.BoolValue(runtime.IgnoreSSL),
+	}
+
+	_resp := make(map[string]interface{})
+	for _retryTimes := 0; tea.BoolValue(tea.AllowRetry(_runtime["retry"], tea.Int(_retryTimes))); _retryTimes++ {
+		if _retryTimes > 0 {
+			_backoffTime := tea.GetBackoffTime(_runtime["backoff"], tea.Int(_retryTimes))
+			if tea.IntValue(_backoffTime) > 0 {
+				tea.Sleep(_backoffTime)
+			}
+		}
+
+		_resp, _err = func() (map[string]interface{}, error) {
+			request_ := tea.NewRequest()
+			request_.Protocol = util.DefaultString(client.Protocol, tea.String("HTTP"))
+			request_.Method = method
+			request_.Pathname = pathname
+			request_.Headers = tea.Merge(map[string]*string{
+				"user-agent":    client.GetUserAgent(),
+				"host":          util.DefaultString(client.Endpoint, tea.String(tea.StringValue(client.InstanceId)+"."+tea.StringValue(client.Domainsuffix))),
+				"authorization": tea.String("Basic " + tea.StringValue(client.Credential)),
+				"content-type":  tea.String("application/json; charset=utf-8"),
+			}, headers)
+			if !tea.BoolValue(util.IsUnset(query)) {
+				request_.Query = util.StringifyMapValue(query)
+				request_.Headers["X-Opensearch-Request-ID"] = util.GetNonce()
+			}
+
+			if !tea.BoolValue(util.IsUnset(body)) {
+				request_.Headers["X-Opensearch-Swift-Request-ID"] = util.GetNonce()
+				request_.Body = tea.ToReader(util.ToJSONString(body))
+			}
+
+			response_, _err := tea.DoRequest(request_, _runtime)
+			if _err != nil {
+				return _result, _err
+			}
+			objStr, _err := util.ReadAsBytes(response_.Body)
+			if _err != nil {
+				return _result, _err
+			}
+
+			if tea.BoolValue(util.Is4xx(response_.StatusCode)) || tea.BoolValue(util.Is5xx(response_.StatusCode)) {
+				errorMsg := util.ToString(objStr)
+				var rawMsg interface{}
+				_, tryErr := func() (_r map[string]interface{}, _e error) {
+					defer func() {
+						if r := tea.Recover(recover()); r != nil {
+							_e = r
+						}
+					}()
+					rawMsg = util.ParseJSON(errorMsg)
+
+					return nil, nil
+				}()
+
+				if tryErr != nil {
+					var err = &tea.SDKError{}
+					if _t, ok := tryErr.(*tea.SDKError); ok {
+						err = _t
+					} else {
+						err.Message = tea.String(tryErr.Error())
+					}
+					rawMsg = errorMsg
+				}
+				rawMap := map[string]interface{}{
+					"errors": rawMsg,
+				}
+				_err = tea.NewSDKError(map[string]interface{}{
+					"message": tea.StringValue(response_.StatusMessage),
+					"data":    rawMap,
+					"code":    tea.IntValue(response_.StatusCode),
+				})
+				return _result, _err
+			}
+
+			if tea.BoolValue(util.IsUnset(objStr)) {
+				rawbodyMap := map[string]interface{}{
+					"status": tea.StringValue(response_.StatusMessage),
+					"code":   tea.IntValue(response_.StatusCode),
+				}
+				_result = make(map[string]interface{})
+				_err = tea.Convert(map[string]interface{}{
+					"body":    rawbodyMap,
+					"headers": response_.Headers,
+				}, &_result)
+				return _result, _err
+			}
+
+			_result = make(map[string]interface{})
+			_err = tea.Convert(map[string]interface{}{
+				"body":    objStr,
+				"headers": response_.Headers,
+			}, &_result)
+			return _result, _err
+		}()
+		if !tea.BoolValue(tea.Retryable(_err)) {
+			break
+		}
+	}
+
+	return _resp, _err
+}
+
 /**
  * 设置Client UA 配置.
  */
@@ -667,9 +832,6 @@ func (client *Client) BuildHaSearchQuery(haquery *HaQuery) (_result *string, _er
 
 	tempString := tea.String("query=" + tea.StringValue(haquery.Query))
 	configStr, _err := client.BuildHaQueryconfigClauseStr(haquery.Config)
-	if _err != nil {
-		return _result, _err
-	}
 	tempString = tea.String(tea.StringValue(tempString) + "&&cluster=" + tea.StringValue(util.DefaultString(haquery.Cluster, tea.String("general"))))
 	tempString = tea.String(tea.StringValue(tempString) + "&&config=" + tea.StringValue(configStr))
 	if !tea.BoolValue(util.IsUnset(haquery.Filter)) {
@@ -723,7 +885,7 @@ func (client *Client) BuildHaSearchQuery(haquery *HaQuery) (_result *string, _er
 
 	}
 
-	kvpairs := client.BuildSearcKvPairClauseStr(haquery.Kvpairs)
+	kvpairs := client.BuildSearcKvPairClauseStr(haquery.Kvpairs, tea.String(","))
 	if !tea.BoolValue(util.Empty(kvpairs)) {
 		tempString = tea.String(tea.StringValue(tempString) + "&&kvpairs=" + tea.StringValue(kvpairs))
 	}
@@ -733,12 +895,11 @@ func (client *Client) BuildHaSearchQuery(haquery *HaQuery) (_result *string, _er
 }
 
 func (client *Client) BuildHaQueryAggregateClauseStr(Clause []*HaQueryAggregateClause) (_result *string, _err error) {
-	_err = nil
 	tempClauseString := tea.String("")
 	for _, AggregateClause := range Clause {
 		tempAggregateClauseString := tea.String("")
 		if tea.BoolValue(util.IsUnset(AggregateClause.GroupKey)) || tea.BoolValue(util.IsUnset(AggregateClause.AggFun)) {
-			_err := tea.NewSDKError(map[string]interface{}{
+			_err = tea.NewSDKError(map[string]interface{}{
 				"name":    "ParameterMissing",
 				"message": "'HaQueryAggregateClause.groupKey/aggFun' can not be unset",
 			})
@@ -789,7 +950,6 @@ func (client *Client) BuildHaQueryAggregateClauseStr(Clause []*HaQueryAggregateC
 
 func (client *Client) BuildHaQueryDistinctClauseStr(Clause []*HaQueryDistinctClause) (_result *string, _err error) {
 	tempClauseString := tea.String("")
-	_err = nil
 	for _, DistinctClause := range Clause {
 		tempDistinctClauseString := tea.String("")
 		if tea.BoolValue(util.IsUnset(DistinctClause.DistKey)) {
@@ -869,7 +1029,6 @@ func (client *Client) BuildHaQuerySortClauseStr(Clause []*HaQuerySortClause) (_r
 }
 
 func (client *Client) BuildHaQueryconfigClauseStr(Clause *HaQueryconfigClause) (_result *string, _err error) {
-	_err = nil
 	tempClauseString := tea.String("")
 	if tea.BoolValue(util.IsUnset(tea.ToMap(Clause))) {
 		_err = tea.NewSDKError(map[string]interface{}{
@@ -890,6 +1049,7 @@ func (client *Client) BuildHaQueryconfigClauseStr(Clause *HaQueryconfigClause) (
 	if tea.BoolValue(util.IsUnset(Clause.Format)) {
 		Clause.Format = nil
 	}
+
 	tempClauseString = tea.String("start:" + tea.StringValue(util.DefaultString(Clause.Start, tea.String("0"))))
 	tempClauseString = tea.String(tea.StringValue(tempClauseString) + ",hit:" + tea.StringValue(util.DefaultString(Clause.Hit, tea.String("10"))))
 	tempClauseString = tea.String(tea.StringValue(tempClauseString) + ",format:" + tea.StringValue(string_.ToLower(util.DefaultString(Clause.Format, tea.String("json")))))
@@ -915,7 +1075,6 @@ func (client *Client) BuildHaQueryconfigClauseStr(Clause *HaQueryconfigClause) (
 }
 
 func (client *Client) BuildSQLSearchQuery(sqlquery *SQLQuery) (_result *string, _err error) {
-	_err = nil
 	if tea.BoolValue(util.IsUnset(sqlquery.Query)) {
 		_err = tea.NewSDKError(map[string]interface{}{
 			"name":    "ParameterMissing",
@@ -925,7 +1084,7 @@ func (client *Client) BuildSQLSearchQuery(sqlquery *SQLQuery) (_result *string, 
 	}
 
 	tempString := tea.String("query=" + tea.StringValue(sqlquery.Query))
-	kvpairs := client.BuildSearcKvPairClauseStr(sqlquery.Kvpairs)
+	kvpairs := client.BuildSearcKvPairClauseStr(sqlquery.Kvpairs, tea.String(";"))
 	if !tea.BoolValue(util.Empty(kvpairs)) {
 		tempString = tea.String(tea.StringValue(tempString) + "&&kvpair=" + tea.StringValue(kvpairs))
 	}
@@ -934,7 +1093,7 @@ func (client *Client) BuildSQLSearchQuery(sqlquery *SQLQuery) (_result *string, 
 	return _result, _err
 }
 
-func (client *Client) BuildSearcKvPairClauseStr(kvPair map[string]*string) (_result *string) {
+func (client *Client) BuildSearcKvPairClauseStr(kvPair map[string]*string, separator *string) (_result *string) {
 	tempkvpairsString := tea.String("__ops_request_id:" + tea.StringValue(util.GetNonce()))
 	if !tea.BoolValue(util.IsUnset(kvPair)) {
 		for _, keyField := range map_.KeySet(kvPair) {
@@ -942,7 +1101,7 @@ func (client *Client) BuildSearcKvPairClauseStr(kvPair map[string]*string) (_res
 			if !tea.BoolValue(util.Empty(fieldValue)) {
 				fieldValueTrimed := string_.Trim(fieldValue)
 				keyFieldTrimed := string_.Trim(keyField)
-				tempkvpairsString = tea.String(tea.StringValue(tempkvpairsString) + "," + tea.StringValue(keyFieldTrimed) + ":" + tea.StringValue(fieldValueTrimed))
+				tempkvpairsString = tea.String(tea.StringValue(tempkvpairsString) + tea.StringValue(separator) + tea.StringValue(keyFieldTrimed) + ":" + tea.StringValue(fieldValueTrimed))
 			}
 
 		}
@@ -953,11 +1112,18 @@ func (client *Client) BuildSearcKvPairClauseStr(kvPair map[string]*string) (_res
 }
 
 /**
- * 系统提供了丰富的搜索语法以满足用户各种场景下的搜索需求。
+ * 系统提供了丰富的搜索语法以满足用户各种场景下的搜索
+ * 支持ha3的query和sql查询语法
+ * 返回数据的body为String格式
  */
-func (client *Client) SearchEx(request *SearchRequestModel, runtime *util.RuntimeOptions) (_result *SearchResponseModel, _err error) {
+func (client *Client) Search(request *SearchRequestModel) (_result *SearchResponseModel, _err error) {
 	_result = &SearchResponseModel{}
-	_body, _err := client._request(tea.String("GET"), tea.String("/query"), tea.ToMap(request.Query), request.Headers, nil, runtime)
+	buildRuntimeOptionsTmp, err := client.BuildRuntimeOptions()
+	if err != nil {
+		_err = err
+		return _result, _err
+	}
+	_body, _err := client._request(tea.String("GET"), tea.String("/query"), tea.ToMap(request.Query), request.Headers, nil, buildRuntimeOptionsTmp)
 	if _err != nil {
 		return _result, _err
 	}
@@ -966,44 +1132,58 @@ func (client *Client) SearchEx(request *SearchRequestModel, runtime *util.Runtim
 }
 
 /**
- * 系统提供了丰富的搜索语法以满足用户各种场景下的搜索需求。
+ * 系统提供了丰富的搜索语法以满足用户各种场景下的搜索
+ * 支持ha3的json查询语法
+ * 返回数据的body为String格式
  */
-func (client *Client) Search(request *SearchRequestModel) (_result *SearchResponseModel, _err error) {
-	runtime := &util.RuntimeOptions{
-		ConnectTimeout: tea.Int(5000),
-		ReadTimeout:    tea.Int(10000),
-		Autoretry:      tea.Bool(false),
-		IgnoreSSL:      tea.Bool(false),
-		MaxIdleConns:   tea.Int(50),
-	}
+func (client *Client) SearchRest(request *SearchRequestModel, indexName *string) (_result *SearchResponseModel, _err error) {
 	_result = &SearchResponseModel{}
-	_body, _err := client.SearchWithOptions(request, runtime)
+	buildRuntimeOptionsTmp, err := client.BuildRuntimeOptions()
+	if err != nil {
+		_err = err
+		return _result, _err
+	}
+	_body, _err := client._request(tea.String("POST"), tea.String("/"+tea.StringValue(indexName)+"/search"), nil, request.Headers, request.Body, buildRuntimeOptionsTmp)
 	if _err != nil {
 		return _result, _err
 	}
-	_result = _body
+	_err = tea.Convert(_body, &_result)
 	return _result, _err
 }
 
 /**
- * 系统提供了丰富的搜索语法以满足用户各种场景下的搜索需求,及传入运行时参数.
+ * 系统提供了丰富的搜索语法以满足用户各种场景下的搜索需求
+ * 支持ha3的query和sql查询语法
+ * 返回数据的body为byte[]格式
  */
-func (client *Client) SearchWithOptions(request *SearchRequestModel, runtime *util.RuntimeOptions) (_result *SearchResponseModel, _err error) {
-	_result = &SearchResponseModel{}
-	_body, _err := client.SearchEx(request, runtime)
+func (client *Client) SearchBytes(request *SearchRequestModel) (_result *SearchBytesResponseModel, _err error) {
+	_result = &SearchBytesResponseModel{}
+	buildRuntimeOptionsTmp, err := client.BuildRuntimeOptions()
+	if err != nil {
+		_err = err
+		return _result, _err
+	}
+	_body, _err := client._request_search_bytes(tea.String("GET"), tea.String("/query"), tea.ToMap(request.Query), request.Headers, nil, buildRuntimeOptionsTmp)
 	if _err != nil {
 		return _result, _err
 	}
-	_result = _body
+	_err = tea.Convert(_body, &_result)
 	return _result, _err
 }
 
 /**
- * 支持新增、更新、删除 等操作，以及对应批量操作
+ * 系统提供了丰富的搜索语法以满足用户各种场景下的搜索需求
+ * 支持ha3的json查询语法
+ * 返回数据的body为byte[]格式
  */
-func (client *Client) PushDocumentEx(dataSourceName *string, request *PushDocumentsRequestModel, runtime *util.RuntimeOptions) (_result *PushDocumentsResponseModel, _err error) {
-	_result = &PushDocumentsResponseModel{}
-	_body, _err := client._request(tea.String("POST"), tea.String("/update/"+tea.StringValue(dataSourceName)+"/actions/bulk"), nil, request.Headers, request.Body, runtime)
+func (client *Client) SearchRestBytes(request *SearchRequestModel, indexName *string) (_result *SearchBytesResponseModel, _err error) {
+	_result = &SearchBytesResponseModel{}
+	buildRuntimeOptionsTmp, err := client.BuildRuntimeOptions()
+	if err != nil {
+		_err = err
+		return _result, _err
+	}
+	_body, _err := client._request_search_bytes(tea.String("POST"), tea.String("/"+tea.StringValue(indexName)+"/search"), nil, request.Headers, request.Body, buildRuntimeOptionsTmp)
 	if _err != nil {
 		return _result, _err
 	}
@@ -1015,34 +1195,50 @@ func (client *Client) PushDocumentEx(dataSourceName *string, request *PushDocume
  * 支持新增、更新、删除 等操作，以及对应批量操作
  */
 func (client *Client) PushDocuments(dataSourceName *string, keyField *string, request *PushDocumentsRequestModel) (_result *PushDocumentsResponseModel, _err error) {
-	runtime := &util.RuntimeOptions{
-		ConnectTimeout: tea.Int(5000),
-		ReadTimeout:    tea.Int(10000),
-		Autoretry:      tea.Bool(false),
-		IgnoreSSL:      tea.Bool(false),
-		MaxIdleConns:   tea.Int(50),
-	}
-	_result = &PushDocumentsResponseModel{}
-	_body, _err := client.PushDocumentsWithOptions(dataSourceName, keyField, request, runtime)
-	if _err != nil {
-		return _result, _err
-	}
-	_result = _body
-	return _result, _err
-}
-
-/**
- * 支持新增、更新、删除 等操作，以及对应批量操作,及传入运行时参数.
- */
-func (client *Client) PushDocumentsWithOptions(dataSourceName *string, keyField *string, request *PushDocumentsRequestModel, runtime *util.RuntimeOptions) (_result *PushDocumentsResponseModel, _err error) {
 	request.Headers = map[string]*string{
 		"X-Opensearch-Swift-PK-Field": keyField,
 	}
 	_result = &PushDocumentsResponseModel{}
-	_body, _err := client.PushDocumentEx(dataSourceName, request, runtime)
+	buildRuntimeOptionsTmp, err := client.BuildRuntimeOptions()
+	if err != nil {
+		_err = err
+		return _result, _err
+	}
+	_body, _err := client._request(tea.String("POST"), tea.String("/update/"+tea.StringValue(dataSourceName)+"/actions/bulk"), nil, request.Headers, request.Body, buildRuntimeOptionsTmp)
 	if _err != nil {
 		return _result, _err
 	}
-	_result = _body
+	_err = tea.Convert(_body, &_result)
+	return _result, _err
+}
+
+/**
+ * 用于内网环境的新增、更新、删除 等操作，以及对应批量操作
+ */
+func (client *Client) PushDocumentsWithSwift(dataSourceName *string, keyField *string, topic *string, swift *string, request *PushDocumentsRequestModel) (_result *PushDocumentsResponseModel, _err error) {
+	request.Headers = map[string]*string{
+		"X-Opensearch-Swift-PK-Field": keyField,
+		"X-Opensearch-Swift-Topic":    topic,
+		"X-Opensearch-Swift-Swift":    swift,
+	}
+	_result = &PushDocumentsResponseModel{}
+	buildRuntimeOptionsTmp, err := client.BuildRuntimeOptions()
+	if err != nil {
+		_err = err
+		return _result, _err
+	}
+	_body, _err := client._request(tea.String("POST"), tea.String("/update/"+tea.StringValue(dataSourceName)+"/actions/bulk"), nil, request.Headers, request.Body, buildRuntimeOptionsTmp)
+	if _err != nil {
+		return _result, _err
+	}
+	_err = tea.Convert(_body, &_result)
+	return _result, _err
+}
+
+/**
+ * 构建RuntimeOptions
+ */
+func (client *Client) BuildRuntimeOptions() (_result *util.RuntimeOptions, _err error) {
+	_result = &util.RuntimeOptions{}
 	return _result, _err
 }
