@@ -5,6 +5,7 @@ import (
   util  "github.com/alibabacloud-go/tea-utils/v2/service"
   string_  "github.com/alibabacloud-go/darabonba-string/client"
   encodeutil  "github.com/alibabacloud-go/darabonba-encode-util/client"
+  map_  "github.com/alibabacloud-go/darabonba-map/client"
   "github.com/alibabacloud-go/tea/tea"
 )
 
@@ -15,7 +16,6 @@ type Config struct {
   AccessUserName *string `json:"accessUserName,omitempty" xml:"accessUserName,omitempty"`
   AccessPassWord *string `json:"accessPassWord,omitempty" xml:"accessPassWord,omitempty"`
   UserAgent *string `json:"userAgent,omitempty" xml:"userAgent,omitempty"`
-  HttpProxy *string `json:"httpProxy,omitempty" xml:"httpProxy,omitempty"`
   RuntimeOptions *util.RuntimeOptions `json:"runtimeOptions,omitempty" xml:"runtimeOptions,omitempty"`
 }
 
@@ -57,383 +57,454 @@ func (s *Config) SetUserAgent(v string) *Config {
   return s
 }
 
-func (s *Config) SetHttpProxy(v string) *Config {
-  s.HttpProxy = &v
-  return s
-}
-
 func (s *Config) SetRuntimeOptions(v *util.RuntimeOptions) *Config {
   s.RuntimeOptions = v
   return s
 }
 
-type SearchResponse struct {
+type HaQuery struct {
+  // 搜索主体，不能为空.并且可以指定多个查询条件及其之间的关系.
+  Query *string `json:"query,omitempty" xml:"query,omitempty" require:"true"`
+  // cluster部分用于指定要查询的集群的名字。它不仅可以同时指定多个集群，还可以指定到集群中的哪些partition获取结果。
+  Cluster *string `json:"cluster,omitempty" xml:"cluster,omitempty"`
+  // config部分可以指定查询结果的起始位置、返回结果的数量、展现结果的格式、参与精排表达式文档个数等。
+  Config *HaQueryconfigClause `json:"config,omitempty" xml:"config,omitempty" require:"true"`
+  // 过滤功能支持用户根据查询条件，筛选出用户感兴趣的文档。会在通过query子句查找到的文档进行进一步的过滤，以返回最终所需结果。
+  Filter *string `json:"filter,omitempty" xml:"filter,omitempty"`
+  // 为便于通过查询语句传递信息给具体的特征函数，用户可以在kvpairs子句中对排序表达式中的可变部分进行参数定义。
+  Kvpairs map[string]*string `json:"kvpairs,omitempty" xml:"kvpairs,omitempty"`
+  // 用户可以通过查询语句控制结果的排序方式，包括指定排序的字段和升降序。field为要排序的字段，+为按字段值升序排序，-为降序排序
+  Sort []*HaQuerySortClause `json:"sort,omitempty" xml:"sort,omitempty" type:"Repeated"`
+  // 一个关键词查询后可能会找到数以万计的文档，用户不太可能浏览所有的文档来获取自己需要的信息，有些情况下用户感兴趣的可能是一些统计的信息。
+  Aggregate []*HaQueryAggregateClause `json:"aggregate,omitempty" xml:"aggregate,omitempty" type:"Repeated"`
+  // 打散子句可以在一定程度上保证展示结果的多样性，以提升用户体验。如一次查询可以查出很多的文档，但是如果某个用户的多个文档分值都比较高，则都排在了前面，导致一页中所展示的结果几乎都属于同一用户，这样既不利于结果展示也不利于用户体验。对此，打散子句可以对每个用户的文档进行抽取，使得每个用户都有展示文档的机会。
+  Distinct []*HaQueryDistinctClause `json:"distinct,omitempty" xml:"distinct,omitempty" type:"Repeated"`
+  // 扩展 配置参数
+  CustomQuery map[string]*string `json:"customConfig,omitempty" xml:"customConfig,omitempty"`
+}
+
+func (s HaQuery) String() string {
+  return tea.Prettify(s)
+}
+
+func (s HaQuery) GoString() string {
+  return s.String()
+}
+
+func (s *HaQuery) SetQuery(v string) *HaQuery {
+  s.Query = &v
+  return s
+}
+
+func (s *HaQuery) SetCluster(v string) *HaQuery {
+  s.Cluster = &v
+  return s
+}
+
+func (s *HaQuery) SetConfig(v *HaQueryconfigClause) *HaQuery {
+  s.Config = v
+  return s
+}
+
+func (s *HaQuery) SetFilter(v string) *HaQuery {
+  s.Filter = &v
+  return s
+}
+
+func (s *HaQuery) SetKvpairs(v map[string]*string) *HaQuery {
+  s.Kvpairs = v
+  return s
+}
+
+func (s *HaQuery) SetSort(v []*HaQuerySortClause) *HaQuery {
+  s.Sort = v
+  return s
+}
+
+func (s *HaQuery) SetAggregate(v []*HaQueryAggregateClause) *HaQuery {
+  s.Aggregate = v
+  return s
+}
+
+func (s *HaQuery) SetDistinct(v []*HaQueryDistinctClause) *HaQuery {
+  s.Distinct = v
+  return s
+}
+
+func (s *HaQuery) SetCustomQuery(v map[string]*string) *HaQuery {
+  s.CustomQuery = v
+  return s
+}
+
+type HaQueryconfigClause struct {
+  // 从结果集中第 start_offset 开始返回 document
+  Start *string `json:"start,omitempty" xml:"start,omitempty" require:"true"`
+  // 返回文档的最大数量
+  Hit *string `json:"hit,omitempty" xml:"hit,omitempty" require:"true"`
+  // 指定用户返回数据格式. 支持 xml 和 json 类型数据返回
+  Format *string `json:"format,omitempty" xml:"format,omitempty" require:"true"`
+  // 扩展 配置参数
+  CustomConfig map[string]*string `json:"customConfig,omitempty" xml:"customConfig,omitempty"`
+}
+
+func (s HaQueryconfigClause) String() string {
+  return tea.Prettify(s)
+}
+
+func (s HaQueryconfigClause) GoString() string {
+  return s.String()
+}
+
+func (s *HaQueryconfigClause) SetStart(v string) *HaQueryconfigClause {
+  s.Start = &v
+  return s
+}
+
+func (s *HaQueryconfigClause) SetHit(v string) *HaQueryconfigClause {
+  s.Hit = &v
+  return s
+}
+
+func (s *HaQueryconfigClause) SetFormat(v string) *HaQueryconfigClause {
+  s.Format = &v
+  return s
+}
+
+func (s *HaQueryconfigClause) SetCustomConfig(v map[string]*string) *HaQueryconfigClause {
+  s.CustomConfig = v
+  return s
+}
+
+type HaQuerySortClause struct {
+  // field为要进行统计的字段名，必须配置属性字段
+  SortKey *string `json:"sortKey,omitempty" xml:"sortKey,omitempty" require:"true"`
+  // +为按字段值升序排序，-为降序排序
+  SortOrder *string `json:"sortOrder,omitempty" xml:"sortOrder,omitempty" require:"true"`
+}
+
+func (s HaQuerySortClause) String() string {
+  return tea.Prettify(s)
+}
+
+func (s HaQuerySortClause) GoString() string {
+  return s.String()
+}
+
+func (s *HaQuerySortClause) SetSortKey(v string) *HaQuerySortClause {
+  s.SortKey = &v
+  return s
+}
+
+func (s *HaQuerySortClause) SetSortOrder(v string) *HaQuerySortClause {
+  s.SortOrder = &v
+  return s
+}
+
+type HaQueryAggregateClause struct {
+  // field为要进行统计的字段名，必须配置属性字段
+  GroupKey *string `json:"group_key,omitempty" xml:"group_key,omitempty" require:"true"`
+  // func可以为count()、sum(id)、max(id)、min(id)四种系统函数，含义分别为：文档个数、对id字段求和、取id字段最大值、取id字段最小值；支持同时进行多个函数的统计，中间用英文井号（#）分隔；sum、max、min的内容支持基本的算术运算
+  AggFun *string `json:"agg_fun,omitempty" xml:"agg_fun,omitempty" require:"true"`
+  // 表示分段统计，可用于分布统计，只支持单个range参数。
+  Range *string `json:"range,omitempty" xml:"range,omitempty"`
+  // 最大返回组数
+  MaxGroup *string `json:"max_group,omitempty" xml:"max_group,omitempty"`
+  // 表示仅统计满足特定条件的文档
+  AggFilter *string `json:"agg_filter,omitempty" xml:"agg_filter,omitempty"`
+  // ，抽样统计的阈值。表示该值之前的文档会依次统计，该值之后的文档会进行抽样统计；
+  AggSamplerThresHold *string `json:"agg_sampler_threshold,omitempty" xml:"agg_sampler_threshold,omitempty"`
+  // 抽样统计的步长，表示从agg_sampler_threshold后的文档将间隔agg_sampler_step个文档统计一次。对于sum和count类型的统计会把阈值后的抽样统计结果最后乘以步长进行估算，估算的结果再加上阈值前的统计结果就是最后的统计结果。
+  AggSamplerStep *string `json:"agg_sampler_step,omitempty" xml:"agg_sampler_step,omitempty"`
+}
+
+func (s HaQueryAggregateClause) String() string {
+  return tea.Prettify(s)
+}
+
+func (s HaQueryAggregateClause) GoString() string {
+  return s.String()
+}
+
+func (s *HaQueryAggregateClause) SetGroupKey(v string) *HaQueryAggregateClause {
+  s.GroupKey = &v
+  return s
+}
+
+func (s *HaQueryAggregateClause) SetAggFun(v string) *HaQueryAggregateClause {
+  s.AggFun = &v
+  return s
+}
+
+func (s *HaQueryAggregateClause) SetRange(v string) *HaQueryAggregateClause {
+  s.Range = &v
+  return s
+}
+
+func (s *HaQueryAggregateClause) SetMaxGroup(v string) *HaQueryAggregateClause {
+  s.MaxGroup = &v
+  return s
+}
+
+func (s *HaQueryAggregateClause) SetAggFilter(v string) *HaQueryAggregateClause {
+  s.AggFilter = &v
+  return s
+}
+
+func (s *HaQueryAggregateClause) SetAggSamplerThresHold(v string) *HaQueryAggregateClause {
+  s.AggSamplerThresHold = &v
+  return s
+}
+
+func (s *HaQueryAggregateClause) SetAggSamplerStep(v string) *HaQueryAggregateClause {
+  s.AggSamplerStep = &v
+  return s
+}
+
+type HaQueryDistinctClause struct {
+  // 要打散的字段
+  DistKey *string `json:"dist_key,omitempty" xml:"dist_key,omitempty" require:"true"`
+  // 一轮抽取的文档数
+  DistCount *string `json:"dist_count,omitempty" xml:"dist_count,omitempty"`
+  // 抽取的轮数
+  DistTimes *string `json:"dist_times,omitempty" xml:"dist_times,omitempty"`
+  // 是否保留抽取之后剩余的文档。如果为false，为不保留，则搜索结果的total（总匹配结果数）会不准确。
+  Reserved *string `json:"reserved,omitempty" xml:"reserved,omitempty"`
+  // 过滤条件，被过滤的doc不参与distinct，只在后面的排序中，这些被过滤的doc将和被distinct出来的第一组doc一起参与排序。默认是全部参与distinct。
+  DistFilter *string `json:"dist_filter,omitempty" xml:"dist_filter,omitempty"`
+  // 当reserved为false时，设置update_total_hit为true，则最终total_hit会减去被distinct丢弃的数目（不一定准确），为false则不减。
+  UpdateTotalHit *string `json:"update_total_hit,omitempty" xml:"update_total_hit,omitempty"`
+  // 指定档位划分阈值，所有的文档将根据档位划分阈值划分成若干档，每个档位中各自根据distinct参数做distinct，可以不指定该参数，默认是所有文档都在同一档。档位的划分按照文档排序时第一维的排序依据的分数进行划分，两个档位阈值之间用 “|” 分开，档位的个数没有限制。例如：1、grade:3.0 ：表示根据第一维排序依据的分数分成两档，(< 3.0)的是第一档，(>= 3.0) 的是第二档；2、grade:3.0|5.0 ：表示分成三档，(< 3.0)是第一档，(>= 3.0，< 5.0)是第二档，(>= 5.0)是第三档。档位的先后顺序和第一维排序依据的顺序一致，即如果第一维排序依据是降序，则档位也是降序，反之亦然。
+  Grade *string `json:"grade,omitempty" xml:"grade,omitempty"`
+}
+
+func (s HaQueryDistinctClause) String() string {
+  return tea.Prettify(s)
+}
+
+func (s HaQueryDistinctClause) GoString() string {
+  return s.String()
+}
+
+func (s *HaQueryDistinctClause) SetDistKey(v string) *HaQueryDistinctClause {
+  s.DistKey = &v
+  return s
+}
+
+func (s *HaQueryDistinctClause) SetDistCount(v string) *HaQueryDistinctClause {
+  s.DistCount = &v
+  return s
+}
+
+func (s *HaQueryDistinctClause) SetDistTimes(v string) *HaQueryDistinctClause {
+  s.DistTimes = &v
+  return s
+}
+
+func (s *HaQueryDistinctClause) SetReserved(v string) *HaQueryDistinctClause {
+  s.Reserved = &v
+  return s
+}
+
+func (s *HaQueryDistinctClause) SetDistFilter(v string) *HaQueryDistinctClause {
+  s.DistFilter = &v
+  return s
+}
+
+func (s *HaQueryDistinctClause) SetUpdateTotalHit(v string) *HaQueryDistinctClause {
+  s.UpdateTotalHit = &v
+  return s
+}
+
+func (s *HaQueryDistinctClause) SetGrade(v string) *HaQueryDistinctClause {
+  s.Grade = &v
+  return s
+}
+
+type SQLQuery struct {
+  // 搜索主体，不能为空.
+  Query *string `json:"query,omitempty" xml:"query,omitempty" require:"true"`
+  // cluster部分用于指定要查询的集群的名字。它不仅可以同时指定多个集群，还可以指定到集群中的哪些partition获取结果。
+  Kvpairs map[string]*string `json:"kvpairs,omitempty" xml:"kvpairs,omitempty"`
+}
+
+func (s SQLQuery) String() string {
+  return tea.Prettify(s)
+}
+
+func (s SQLQuery) GoString() string {
+  return s.String()
+}
+
+func (s *SQLQuery) SetQuery(v string) *SQLQuery {
+  s.Query = &v
+  return s
+}
+
+func (s *SQLQuery) SetKvpairs(v map[string]*string) *SQLQuery {
+  s.Kvpairs = v
+  return s
+}
+
+type SearchQuery struct {
+  // 适配于 Ha3 类型 query. 参数支持子句关键字请参照文档
+  Query *string `json:"query,omitempty" xml:"query,omitempty"`
+  // 适配于 SQL 类型 query. 参数支持子句关键字请参照文档.
+  Sql *string `json:"sql,omitempty" xml:"sql,omitempty"`
+}
+
+func (s SearchQuery) String() string {
+  return tea.Prettify(s)
+}
+
+func (s SearchQuery) GoString() string {
+  return s.String()
+}
+
+func (s *SearchQuery) SetQuery(v string) *SearchQuery {
+  s.Query = &v
+  return s
+}
+
+func (s *SearchQuery) SetSql(v string) *SearchQuery {
+  s.Sql = &v
+  return s
+}
+
+type SearchRequestModel struct {
+  // headers
+  Headers map[string]*string `json:"headers,omitempty" xml:"headers,omitempty"`
+  // query
+  Query *SearchQuery `json:"query,omitempty" xml:"query,omitempty" require:"true"`
+  // body
+  Body *string `json:"body,omitempty" xml:"body,omitempty"`
+  // 请求方式，仅支持GET、POST两种请求方式
+  Method *string `json:"method,omitempty" xml:"method,omitempty"`
+}
+
+func (s SearchRequestModel) String() string {
+  return tea.Prettify(s)
+}
+
+func (s SearchRequestModel) GoString() string {
+  return s.String()
+}
+
+func (s *SearchRequestModel) SetHeaders(v map[string]*string) *SearchRequestModel {
+  s.Headers = v
+  return s
+}
+
+func (s *SearchRequestModel) SetQuery(v *SearchQuery) *SearchRequestModel {
+  s.Query = v
+  return s
+}
+
+func (s *SearchRequestModel) SetBody(v string) *SearchRequestModel {
+  s.Body = &v
+  return s
+}
+
+func (s *SearchRequestModel) SetMethod(v string) *SearchRequestModel {
+  s.Method = &v
+  return s
+}
+
+type SearchResponseModel struct {
   // headers
   Headers map[string]*string `json:"headers,omitempty" xml:"headers,omitempty"`
   // body
   Body *string `json:"body,omitempty" xml:"body,omitempty" require:"true"`
 }
 
-func (s SearchResponse) String() string {
+func (s SearchResponseModel) String() string {
   return tea.Prettify(s)
 }
 
-func (s SearchResponse) GoString() string {
+func (s SearchResponseModel) GoString() string {
   return s.String()
 }
 
-func (s *SearchResponse) SetHeaders(v map[string]*string) *SearchResponse {
+func (s *SearchResponseModel) SetHeaders(v map[string]*string) *SearchResponseModel {
   s.Headers = v
   return s
 }
 
-func (s *SearchResponse) SetBody(v string) *SearchResponse {
+func (s *SearchResponseModel) SetBody(v string) *SearchResponseModel {
   s.Body = &v
   return s
 }
 
-type QueryRequest struct {
-  // 数据源名
-  TableName *string `json:"tableName,omitempty" xml:"tableName,omitempty" require:"true"`
-  // 向量数据
-  Vector []*float32 `json:"vector,omitempty" xml:"vector,omitempty" require:"true" type:"Repeated"`
-  // 查询向量的空间
-  Namespace *string `json:"namespace,omitempty" xml:"namespace,omitempty"`
-  // 返回个数
-  TopK *int `json:"topK,omitempty" xml:"topK,omitempty"`
-  // 查询的索引名
-  IndexName *string `json:"indexName,omitempty" xml:"indexName,omitempty"`
-  // 查询的稀疏向量
-  SparseData *SparseData `json:"sparseData,omitempty" xml:"sparseData,omitempty"`
-  // Query的权重
-  Weight *float32 `json:"weight,omitempty" xml:"weight,omitempty"`
-  // 需要向量化的内容
-  Content *string `json:"content,omitempty" xml:"content,omitempty"`
-  // 使用的模型
-  Modal *string `json:"modal,omitempty" xml:"modal,omitempty"`
-  // 是否返回文档中的向量信息
-  IncludeVector *bool `json:"includeVector,omitempty" xml:"includeVector,omitempty"`
-  // 需要返回值的字段列表
-  OutputFields []*string `json:"outputFields,omitempty" xml:"outputFields,omitempty" type:"Repeated"`
-  // 排序顺序, ASC：升序  DESC: 降序
-  Order *string `json:"order,omitempty" xml:"order,omitempty"`
-  // 查询参数
-  SearchParams *string `json:"searchParams,omitempty" xml:"searchParams,omitempty"`
-  // 过滤表达式
-  Filter *string `json:"filter,omitempty" xml:"filter,omitempty"`
-  // 分数过滤， 使用欧式距离时，只返回小于scoreThreshold的结果。使用内积时，只返回大于scoreThreshold的结果
-  ScoreThreshold *float32 `json:"scoreThreshold,omitempty" xml:"scoreThreshold,omitempty"`
-  // vector字段中包含的向量个数
-  VectorCount *int `json:"vectorCount,omitempty" xml:"vectorCount,omitempty"`
-  // 排序表达式
-  Sort *string `json:"sort,omitempty" xml:"sort,omitempty"`
+type SearchBytesResponseModel struct {
+  // headers
+  Headers map[string]*string `json:"headers,omitempty" xml:"headers,omitempty"`
+  // body
+  Body []byte `json:"body,omitempty" xml:"body,omitempty" require:"true"`
 }
 
-func (s QueryRequest) String() string {
+func (s SearchBytesResponseModel) String() string {
   return tea.Prettify(s)
 }
 
-func (s QueryRequest) GoString() string {
+func (s SearchBytesResponseModel) GoString() string {
   return s.String()
 }
 
-func (s *QueryRequest) SetTableName(v string) *QueryRequest {
-  s.TableName = &v
+func (s *SearchBytesResponseModel) SetHeaders(v map[string]*string) *SearchBytesResponseModel {
+  s.Headers = v
   return s
 }
 
-func (s *QueryRequest) SetVector(v []*float32) *QueryRequest {
-  s.Vector = v
+func (s *SearchBytesResponseModel) SetBody(v []byte) *SearchBytesResponseModel {
+  s.Body = v
   return s
 }
 
-func (s *QueryRequest) SetNamespace(v string) *QueryRequest {
-  s.Namespace = &v
-  return s
-}
-
-func (s *QueryRequest) SetTopK(v int) *QueryRequest {
-  s.TopK = &v
-  return s
-}
-
-func (s *QueryRequest) SetIndexName(v string) *QueryRequest {
-  s.IndexName = &v
-  return s
-}
-
-func (s *QueryRequest) SetSparseData(v *SparseData) *QueryRequest {
-  s.SparseData = v
-  return s
-}
-
-func (s *QueryRequest) SetWeight(v float32) *QueryRequest {
-  s.Weight = &v
-  return s
-}
-
-func (s *QueryRequest) SetContent(v string) *QueryRequest {
-  s.Content = &v
-  return s
-}
-
-func (s *QueryRequest) SetModal(v string) *QueryRequest {
-  s.Modal = &v
-  return s
-}
-
-func (s *QueryRequest) SetIncludeVector(v bool) *QueryRequest {
-  s.IncludeVector = &v
-  return s
-}
-
-func (s *QueryRequest) SetOutputFields(v []*string) *QueryRequest {
-  s.OutputFields = v
-  return s
-}
-
-func (s *QueryRequest) SetOrder(v string) *QueryRequest {
-  s.Order = &v
-  return s
-}
-
-func (s *QueryRequest) SetSearchParams(v string) *QueryRequest {
-  s.SearchParams = &v
-  return s
-}
-
-func (s *QueryRequest) SetFilter(v string) *QueryRequest {
-  s.Filter = &v
-  return s
-}
-
-func (s *QueryRequest) SetScoreThreshold(v float32) *QueryRequest {
-  s.ScoreThreshold = &v
-  return s
-}
-
-func (s *QueryRequest) SetVectorCount(v int) *QueryRequest {
-  s.VectorCount = &v
-  return s
-}
-
-func (s *QueryRequest) SetSort(v string) *QueryRequest {
-  s.Sort = &v
-  return s
-}
-
-type SparseData struct {
-  // 每个稀疏向量中包含的元素个数
-  Count []*int `json:"count,omitempty" xml:"count,omitempty" type:"Repeated"`
-  // 元素下标（需要从小到大排序）
-  Indices []*int64 `json:"indices,omitempty" xml:"indices,omitempty" require:"true" type:"Repeated"`
-  // 元素值（与下标一一对应）
-  Values []*float32 `json:"values,omitempty" xml:"values,omitempty" require:"true" type:"Repeated"`
-}
-
-func (s SparseData) String() string {
-  return tea.Prettify(s)
-}
-
-func (s SparseData) GoString() string {
-  return s.String()
-}
-
-func (s *SparseData) SetCount(v []*int) *SparseData {
-  s.Count = v
-  return s
-}
-
-func (s *SparseData) SetIndices(v []*int64) *SparseData {
-  s.Indices = v
-  return s
-}
-
-func (s *SparseData) SetValues(v []*float32) *SparseData {
-  s.Values = v
-  return s
-}
-
-type MultiQueryRequest struct {
-  // 数据源名
-  TableName *string `json:"tableName,omitempty" xml:"tableName,omitempty" require:"true"`
-  // 多向量列表
-  Queries []*QueryRequest `json:"queries,omitempty" xml:"queries,omitempty" require:"true" type:"Repeated"`
-  // 返回个数
-  TopK *int `json:"topK,omitempty" xml:"topK,omitempty"`
-  // 是否返回文档中的向量信息
-  IncludeVector *bool `json:"includeVector,omitempty" xml:"includeVector,omitempty"`
-  // 需要返回值的字段列表
-  OutputFields []*string `json:"outputFields,omitempty" xml:"outputFields,omitempty" type:"Repeated"`
-  // 排序顺序, ASC：升序  DESC: 降序
-  Order *string `json:"order,omitempty" xml:"order,omitempty"`
-  // 过滤表达式
-  Filter *string `json:"filter,omitempty" xml:"filter,omitempty"`
-  // 排序表达式
-  Sort *string `json:"sort,omitempty" xml:"sort,omitempty"`
-}
-
-func (s MultiQueryRequest) String() string {
-  return tea.Prettify(s)
-}
-
-func (s MultiQueryRequest) GoString() string {
-  return s.String()
-}
-
-func (s *MultiQueryRequest) SetTableName(v string) *MultiQueryRequest {
-  s.TableName = &v
-  return s
-}
-
-func (s *MultiQueryRequest) SetQueries(v []*QueryRequest) *MultiQueryRequest {
-  s.Queries = v
-  return s
-}
-
-func (s *MultiQueryRequest) SetTopK(v int) *MultiQueryRequest {
-  s.TopK = &v
-  return s
-}
-
-func (s *MultiQueryRequest) SetIncludeVector(v bool) *MultiQueryRequest {
-  s.IncludeVector = &v
-  return s
-}
-
-func (s *MultiQueryRequest) SetOutputFields(v []*string) *MultiQueryRequest {
-  s.OutputFields = v
-  return s
-}
-
-func (s *MultiQueryRequest) SetOrder(v string) *MultiQueryRequest {
-  s.Order = &v
-  return s
-}
-
-func (s *MultiQueryRequest) SetFilter(v string) *MultiQueryRequest {
-  s.Filter = &v
-  return s
-}
-
-func (s *MultiQueryRequest) SetSort(v string) *MultiQueryRequest {
-  s.Sort = &v
-  return s
-}
-
-type FetchRequest struct {
-  // 数据源名
-  TableName *string `json:"tableName,omitempty" xml:"tableName,omitempty" require:"true"`
-  // 主键列表，如果传了主键列表，下面的条件参数不生效
-  Ids []*string `json:"ids,omitempty" xml:"ids,omitempty" type:"Repeated"`
-  // 过滤表达式
-  Filter *string `json:"filter,omitempty" xml:"filter,omitempty"`
-  // 排序表达式
-  Sort *string `json:"sort,omitempty" xml:"sort,omitempty"`
-  // 返回的数据个数
-  Limit *int `json:"limit,omitempty" xml:"limit,omitempty"`
-  // 返回的数据开始下标，用于翻页
-  Offset *int `json:"offset,omitempty" xml:"offset,omitempty"`
-  // 是否返回向量数据
-  IncludeVector *bool `json:"includeVector,omitempty" xml:"includeVector,omitempty"`
-  // 需要返回的字段，不指定默认返回所有的字段
-  OutputFields []*string `json:"outputFields,omitempty" xml:"outputFields,omitempty" type:"Repeated"`
-}
-
-func (s FetchRequest) String() string {
-  return tea.Prettify(s)
-}
-
-func (s FetchRequest) GoString() string {
-  return s.String()
-}
-
-func (s *FetchRequest) SetTableName(v string) *FetchRequest {
-  s.TableName = &v
-  return s
-}
-
-func (s *FetchRequest) SetIds(v []*string) *FetchRequest {
-  s.Ids = v
-  return s
-}
-
-func (s *FetchRequest) SetFilter(v string) *FetchRequest {
-  s.Filter = &v
-  return s
-}
-
-func (s *FetchRequest) SetSort(v string) *FetchRequest {
-  s.Sort = &v
-  return s
-}
-
-func (s *FetchRequest) SetLimit(v int) *FetchRequest {
-  s.Limit = &v
-  return s
-}
-
-func (s *FetchRequest) SetOffset(v int) *FetchRequest {
-  s.Offset = &v
-  return s
-}
-
-func (s *FetchRequest) SetIncludeVector(v bool) *FetchRequest {
-  s.IncludeVector = &v
-  return s
-}
-
-func (s *FetchRequest) SetOutputFields(v []*string) *FetchRequest {
-  s.OutputFields = v
-  return s
-}
-
-type PushDocumentsRequest struct {
+type PushDocumentsRequestModel struct {
   // headers
   Headers map[string]*string `json:"headers,omitempty" xml:"headers,omitempty"`
   // body
   Body []map[string]interface{} `json:"body,omitempty" xml:"body,omitempty" require:"true" type:"Repeated"`
 }
 
-func (s PushDocumentsRequest) String() string {
+func (s PushDocumentsRequestModel) String() string {
   return tea.Prettify(s)
 }
 
-func (s PushDocumentsRequest) GoString() string {
+func (s PushDocumentsRequestModel) GoString() string {
   return s.String()
 }
 
-func (s *PushDocumentsRequest) SetHeaders(v map[string]*string) *PushDocumentsRequest {
+func (s *PushDocumentsRequestModel) SetHeaders(v map[string]*string) *PushDocumentsRequestModel {
   s.Headers = v
   return s
 }
 
-func (s *PushDocumentsRequest) SetBody(v []map[string]interface{}) *PushDocumentsRequest {
+func (s *PushDocumentsRequestModel) SetBody(v []map[string]interface{}) *PushDocumentsRequestModel {
   s.Body = v
   return s
 }
 
-type PushDocumentsResponse struct {
+type PushDocumentsResponseModel struct {
   // headers
   Headers map[string]*string `json:"headers,omitempty" xml:"headers,omitempty"`
   // body
   Body *string `json:"body,omitempty" xml:"body,omitempty" require:"true"`
 }
 
-func (s PushDocumentsResponse) String() string {
+func (s PushDocumentsResponseModel) String() string {
   return tea.Prettify(s)
 }
 
-func (s PushDocumentsResponse) GoString() string {
+func (s PushDocumentsResponseModel) GoString() string {
   return s.String()
 }
 
-func (s *PushDocumentsResponse) SetHeaders(v map[string]*string) *PushDocumentsResponse {
+func (s *PushDocumentsResponseModel) SetHeaders(v map[string]*string) *PushDocumentsResponseModel {
   s.Headers = v
   return s
 }
 
-func (s *PushDocumentsResponse) SetBody(v string) *PushDocumentsResponse {
+func (s *PushDocumentsResponseModel) SetBody(v string) *PushDocumentsResponseModel {
   s.Body = &v
   return s
 }
@@ -445,7 +516,6 @@ type Client struct {
   UserAgent  *string
   Credential  *string
   Domainsuffix  *string
-  HttpProxy  *string
   RuntimeOptions  *util.RuntimeOptions
 }
 
@@ -464,16 +534,12 @@ func (client *Client)Init(config *Config)(_err error) {
     return _err
   }
 
-  if !tea.BoolValue(util.Empty(config.AccessUserName)) && !tea.BoolValue(util.Empty(config.AccessPassWord)) {
-    client.Credential = client.GetRealmSignStr(config.AccessUserName, config.AccessPassWord)
-  }
-
+  client.Credential = client.GetRealmSignStr(config.AccessUserName, config.AccessPassWord)
   client.Endpoint = config.Endpoint
   client.InstanceId = config.InstanceId
   client.Protocol = config.Protocol
   client.UserAgent = config.UserAgent
   client.Domainsuffix = tea.String("ha.aliyuncs.com")
-  client.HttpProxy = config.HttpProxy
   client.RuntimeOptions = client.BuildRuntimeOptions(config.RuntimeOptions)
   return nil
 }
@@ -488,17 +554,16 @@ func (client *Client) _request(method *string, pathname *string, query map[strin
     "timeouted": "retry",
     "readTimeout": tea.IntValue(runtime.ReadTimeout),
     "connectTimeout": tea.IntValue(runtime.ConnectTimeout),
-    "httpProxy": tea.StringValue(runtime.HttpProxy),
     "httpsProxy": tea.StringValue(runtime.HttpsProxy),
     "noProxy": tea.StringValue(runtime.NoProxy),
     "maxIdleConns": tea.IntValue(runtime.MaxIdleConns),
     "retry": map[string]interface{}{
       "retryable": tea.BoolValue(runtime.Autoretry),
-      "maxAttempts": tea.IntValue(runtime.MaxAttempts),
+      "maxAttempts": tea.IntValue(util.DefaultNumber(runtime.MaxAttempts, tea.Int(5))),
     },
     "backoff": map[string]interface{}{
-      "policy": tea.StringValue(runtime.BackoffPolicy),
-      "period": tea.IntValue(runtime.BackoffPeriod),
+      "policy": tea.StringValue(util.DefaultString(runtime.BackoffPolicy, tea.String("no"))),
+      "period": tea.IntValue(util.DefaultNumber(runtime.BackoffPeriod, tea.Int(1))),
     },
     "ignoreSSL": tea.BoolValue(runtime.IgnoreSSL),
   }
@@ -603,6 +668,130 @@ func (client *Client) _request(method *string, pathname *string, query map[strin
   return _resp, _err
 }
 
+func (client *Client) _request_search_bytes(method *string, pathname *string, query map[string]interface{}, headers map[string]*string, body interface{}, runtime *util.RuntimeOptions) (_result map[string]interface{}, _err error) {
+  _err = tea.Validate(runtime)
+  if _err != nil {
+    return _result, _err
+  }
+  _runtime := map[string]interface{}{
+    "timeouted": "retry",
+    "readTimeout": tea.IntValue(runtime.ReadTimeout),
+    "connectTimeout": tea.IntValue(runtime.ConnectTimeout),
+    "httpsProxy": tea.StringValue(runtime.HttpsProxy),
+    "noProxy": tea.StringValue(runtime.NoProxy),
+    "maxIdleConns": tea.IntValue(runtime.MaxIdleConns),
+    "retry": map[string]interface{}{
+      "retryable": tea.BoolValue(runtime.Autoretry),
+      "maxAttempts": tea.IntValue(util.DefaultNumber(runtime.MaxAttempts, tea.Int(5))),
+    },
+    "backoff": map[string]interface{}{
+      "policy": tea.StringValue(util.DefaultString(runtime.BackoffPolicy, tea.String("no"))),
+      "period": tea.IntValue(util.DefaultNumber(runtime.BackoffPeriod, tea.Int(1))),
+    },
+    "ignoreSSL": tea.BoolValue(runtime.IgnoreSSL),
+  }
+
+  _resp := make(map[string]interface{})
+  for _retryTimes := 0; tea.BoolValue(tea.AllowRetry(_runtime["retry"], tea.Int(_retryTimes))); _retryTimes++ {
+    if _retryTimes > 0 {
+      _backoffTime := tea.GetBackoffTime(_runtime["backoff"], tea.Int(_retryTimes))
+      if tea.IntValue(_backoffTime) > 0 {
+        tea.Sleep(_backoffTime)
+      }
+    }
+
+    _resp, _err = func()(map[string]interface{}, error){
+      request_ := tea.NewRequest()
+      request_.Protocol = util.DefaultString(client.Protocol, tea.String("HTTP"))
+      request_.Method = method
+      request_.Pathname = pathname
+      request_.Headers = tea.Merge(map[string]*string{
+        "user-agent": client.GetUserAgent(),
+        "host": util.DefaultString(client.Endpoint, tea.String(tea.StringValue(client.InstanceId) + "." + tea.StringValue(client.Domainsuffix))),
+        "authorization": tea.String("Basic " + tea.StringValue(client.Credential)),
+        "content-type": tea.String("application/json; charset=utf-8"),
+        },headers)
+      if !tea.BoolValue(util.IsUnset(query)) {
+        request_.Query = util.StringifyMapValue(query)
+        request_.Headers["X-Opensearch-Request-ID"] = util.GetNonce()
+      }
+
+      if !tea.BoolValue(util.IsUnset(body)) {
+        request_.Headers["X-Opensearch-Swift-Request-ID"] = util.GetNonce()
+        request_.Body = tea.ToReader(util.ToJSONString(body))
+      }
+
+      response_, _err := tea.DoRequest(request_, _runtime)
+      if _err != nil {
+        return _result, _err
+      }
+      objStr, _err := util.ReadAsBytes(response_.Body)
+      if _err != nil {
+        return _result, _err
+      }
+
+      if tea.BoolValue(util.Is4xx(response_.StatusCode)) || tea.BoolValue(util.Is5xx(response_.StatusCode)) {
+        errorMsg := util.ToString(objStr)
+        var rawMsg interface{}
+        _, tryErr := func()(_r map[string]interface{}, _e error) {
+          defer func() {
+            if r := tea.Recover(recover()); r != nil {
+              _e = r
+            }
+          }()
+          rawMsg = util.ParseJSON(errorMsg)
+
+          return nil, nil
+        }()
+
+        if tryErr != nil {
+          var err = &tea.SDKError{}
+          if _t, ok := tryErr.(*tea.SDKError); ok {
+            err = _t
+          } else {
+            err.Message = tea.String(tryErr.Error())
+          }
+          rawMsg = errorMsg
+        }
+        rawMap := map[string]interface{}{
+          "errors": rawMsg,
+        }
+        _err = tea.NewSDKError(map[string]interface{}{
+          "message": tea.StringValue(response_.StatusMessage),
+          "data": rawMap,
+          "code": tea.IntValue(response_.StatusCode),
+        })
+        return _result, _err
+      }
+
+      if tea.BoolValue(util.IsUnset(objStr)) {
+        rawbodyMap := map[string]interface{}{
+          "status": tea.StringValue(response_.StatusMessage),
+          "code": tea.IntValue(response_.StatusCode),
+        }
+        _result = make(map[string]interface{})
+        _err = tea.Convert(map[string]interface{}{
+          "body": rawbodyMap,
+          "headers": response_.Headers,
+        }, &_result)
+        return _result, _err
+      }
+
+      _result = make(map[string]interface{})
+      _err = tea.Convert(map[string]interface{}{
+        "body": objStr,
+        "headers": response_.Headers,
+      }, &_result)
+      return _result, _err
+    }()
+    if !tea.BoolValue(tea.Retryable(_err)) {
+      break
+    }
+  }
+
+  return _resp, _err
+}
+
 
 // Description:
 //
@@ -639,12 +828,368 @@ func (client *Client) GetRealmSignStr (accessUserName *string, accessPassWord *s
   return _result
 }
 
+func (client *Client) BuildHaSearchQuery (haquery *HaQuery) (_result *string, _err error) {
+  if tea.BoolValue(util.IsUnset(haquery.Query)) {
+    _err = tea.NewSDKError(map[string]interface{}{
+      "name": "ParameterMissing",
+      "message": "'HaQuery.query' can not be unset",
+    })
+    return _result, _err
+  }
+
+  tempString := tea.String("query=" + tea.StringValue(haquery.Query))
+  configStr, _err := client.BuildHaQueryconfigClauseStr(haquery.Config)
+  if _err != nil {
+    return _result, _err
+  }
+
+  tempString = tea.String(tea.StringValue(tempString) + "&&cluster=" + tea.StringValue(util.DefaultString(haquery.Cluster, tea.String("general"))))
+  tempString = tea.String(tea.StringValue(tempString) + "&&config=" + tea.StringValue(configStr))
+  if !tea.BoolValue(util.IsUnset(haquery.Filter)) {
+    filterStr := haquery.Filter
+    if !tea.BoolValue(util.Empty(filterStr)) {
+      fieldValueTrimed := string_.Trim(filterStr)
+      tempString = tea.String(tea.StringValue(tempString) + "&&filter=" + tea.StringValue(fieldValueTrimed))
+    }
+
+  }
+
+  if !tea.BoolValue(util.IsUnset(haquery.CustomQuery)) {
+    for _, keyField := range map_.KeySet(haquery.CustomQuery) {
+      fieldValue := haquery.CustomQuery[tea.StringValue(keyField)]
+      if !tea.BoolValue(util.Empty(fieldValue)) {
+        fieldValueTrimed := string_.Trim(fieldValue)
+        keyFieldTrimed := string_.Trim(keyField)
+        tempString = tea.String(tea.StringValue(tempString) + "&&" + tea.StringValue(keyFieldTrimed) + "=" + tea.StringValue(fieldValueTrimed))
+      }
+
+    }
+  }
+
+  if !tea.BoolValue(util.IsUnset(haquery.Sort)) {
+    sortStr := client.BuildHaQuerySortClauseStr(haquery.Sort)
+    if !tea.BoolValue(util.Empty(sortStr)) {
+      tempString = tea.String(tea.StringValue(tempString) + "&&sort=" + tea.StringValue(sortStr))
+    }
+
+  }
+
+  if !tea.BoolValue(util.IsUnset(haquery.Aggregate)) {
+    aggregateClauseStr, _err := client.BuildHaQueryAggregateClauseStr(haquery.Aggregate)
+    if _err != nil {
+      return _result, _err
+    }
+
+    if !tea.BoolValue(util.Empty(aggregateClauseStr)) {
+      tempString = tea.String(tea.StringValue(tempString) + "&&aggregate=" + tea.StringValue(aggregateClauseStr))
+    }
+
+  }
+
+  if !tea.BoolValue(util.IsUnset(haquery.Distinct)) {
+    distinctClauseStr, _err := client.BuildHaQueryDistinctClauseStr(haquery.Distinct)
+    if _err != nil {
+      return _result, _err
+    }
+
+    if !tea.BoolValue(util.Empty(distinctClauseStr)) {
+      tempString = tea.String(tea.StringValue(tempString) + "&&distinct=" + tea.StringValue(distinctClauseStr))
+    }
+
+  }
+
+  kvpairs := client.BuildSearcKvPairClauseStr(haquery.Kvpairs, tea.String(","))
+  if !tea.BoolValue(util.Empty(kvpairs)) {
+    tempString = tea.String(tea.StringValue(tempString) + "&&kvpairs=" + tea.StringValue(kvpairs))
+  }
+
+  _result = tempString
+  return _result , _err
+}
+
+func (client *Client) BuildHaQueryAggregateClauseStr (Clause []*HaQueryAggregateClause) (_result *string, _err error) {
+  tempClauseString := tea.String("")
+  for _, AggregateClause := range Clause {
+    tempAggregateClauseString := tea.String("")
+    if tea.BoolValue(util.IsUnset(AggregateClause.GroupKey)) || tea.BoolValue(util.IsUnset(AggregateClause.AggFun)) {
+      _err = tea.NewSDKError(map[string]interface{}{
+        "name": "ParameterMissing",
+        "message": "'HaQueryAggregateClause.groupKey/aggFun' can not be unset",
+      })
+      return _result, _err
+    }
+
+    if !tea.BoolValue(util.Empty(AggregateClause.GroupKey)) && !tea.BoolValue(util.Empty(AggregateClause.AggFun)) {
+      groupKeyTrimed := string_.Trim(AggregateClause.GroupKey)
+      aggFunTrimed := string_.Trim(AggregateClause.AggFun)
+      tempAggregateClauseString = tea.String("group_key:" + tea.StringValue(groupKeyTrimed) + ",agg_fun:" + tea.StringValue(aggFunTrimed))
+    }
+
+    if !tea.BoolValue(util.Empty(AggregateClause.Range)) {
+      rangeTrimed := string_.Trim(AggregateClause.Range)
+      tempAggregateClauseString = tea.String(tea.StringValue(tempAggregateClauseString) + ",range:" + tea.StringValue(rangeTrimed))
+    }
+
+    if !tea.BoolValue(util.Empty(AggregateClause.MaxGroup)) {
+      maxGroupTrimed := string_.Trim(AggregateClause.MaxGroup)
+      tempAggregateClauseString = tea.String(tea.StringValue(tempAggregateClauseString) + ",max_group:" + tea.StringValue(maxGroupTrimed))
+    }
+
+    if !tea.BoolValue(util.Empty(AggregateClause.AggFilter)) {
+      aggFilterTrimed := string_.Trim(AggregateClause.AggFilter)
+      tempAggregateClauseString = tea.String(tea.StringValue(tempAggregateClauseString) + ",agg_filter:" + tea.StringValue(aggFilterTrimed))
+    }
+
+    if !tea.BoolValue(util.Empty(AggregateClause.AggSamplerThresHold)) {
+      aggSamplerThresHoldTrimed := string_.Trim(AggregateClause.AggSamplerThresHold)
+      tempAggregateClauseString = tea.String(tea.StringValue(tempAggregateClauseString) + ",agg_sampler_threshold:" + tea.StringValue(aggSamplerThresHoldTrimed))
+    }
+
+    if !tea.BoolValue(util.Empty(AggregateClause.AggSamplerStep)) {
+      aggSamplerStepTrimed := string_.Trim(AggregateClause.AggSamplerStep)
+      tempAggregateClauseString = tea.String(tea.StringValue(tempAggregateClauseString) + ",agg_sampler_step:" + tea.StringValue(aggSamplerStepTrimed))
+    }
+
+    if !tea.BoolValue(util.Empty(tempClauseString)) {
+      tempClauseString = tea.String(tea.StringValue(tempClauseString) + ";" + tea.StringValue(tempAggregateClauseString))
+    } else {
+      tempClauseString = tea.String(tea.StringValue(tempAggregateClauseString))
+    }
+
+  }
+  _result = tempClauseString
+  return _result , _err
+}
+
+func (client *Client) BuildHaQueryDistinctClauseStr (Clause []*HaQueryDistinctClause) (_result *string, _err error) {
+  tempClauseString := tea.String("")
+  for _, DistinctClause := range Clause {
+    tempDistinctClauseString := tea.String("")
+    if tea.BoolValue(util.IsUnset(DistinctClause.DistKey)) {
+      _err = tea.NewSDKError(map[string]interface{}{
+        "name": "ParameterMissing",
+        "message": "'HaQueryDistinctClause.distKey' can not be unset",
+      })
+      return _result, _err
+    }
+
+    if !tea.BoolValue(util.Empty(DistinctClause.DistKey)) {
+      distKeyTrimed := string_.Trim(DistinctClause.DistKey)
+      tempDistinctClauseString = tea.String("dist_key:" + tea.StringValue(distKeyTrimed))
+    }
+
+    if !tea.BoolValue(util.Empty(DistinctClause.DistCount)) {
+      distCountTrimed := string_.Trim(DistinctClause.DistCount)
+      tempDistinctClauseString = tea.String(tea.StringValue(tempDistinctClauseString) + ",dist_count:" + tea.StringValue(distCountTrimed))
+    }
+
+    if !tea.BoolValue(util.Empty(DistinctClause.DistTimes)) {
+      distTimesTrimed := string_.Trim(DistinctClause.DistTimes)
+      tempDistinctClauseString = tea.String(tea.StringValue(tempDistinctClauseString) + ",dist_times:" + tea.StringValue(distTimesTrimed))
+    }
+
+    if !tea.BoolValue(util.Empty(DistinctClause.Reserved)) {
+      reservedTrimed := string_.Trim(DistinctClause.Reserved)
+      tempDistinctClauseString = tea.String(tea.StringValue(tempDistinctClauseString) + ",reserved:" + tea.StringValue(reservedTrimed))
+    }
+
+    if !tea.BoolValue(util.Empty(DistinctClause.DistFilter)) {
+      distFilterTrimed := string_.Trim(DistinctClause.DistFilter)
+      tempDistinctClauseString = tea.String(tea.StringValue(tempDistinctClauseString) + ",dist_filter:" + tea.StringValue(distFilterTrimed))
+    }
+
+    if !tea.BoolValue(util.Empty(DistinctClause.UpdateTotalHit)) {
+      updateTotalHitTrimed := string_.Trim(DistinctClause.UpdateTotalHit)
+      tempDistinctClauseString = tea.String(tea.StringValue(tempDistinctClauseString) + ",update_total_hit:" + tea.StringValue(updateTotalHitTrimed))
+    }
+
+    if !tea.BoolValue(util.Empty(DistinctClause.Grade)) {
+      gradeTrimed := string_.Trim(DistinctClause.Grade)
+      tempDistinctClauseString = tea.String(tea.StringValue(tempDistinctClauseString) + ",grade:" + tea.StringValue(gradeTrimed))
+    }
+
+    if !tea.BoolValue(util.Empty(tempClauseString)) {
+      tempClauseString = tea.String(tea.StringValue(tempClauseString) + ";" + tea.StringValue(tempDistinctClauseString))
+    } else {
+      tempClauseString = tea.String(tea.StringValue(tempDistinctClauseString))
+    }
+
+  }
+  _result = tempClauseString
+  return _result , _err
+}
+
+func (client *Client) BuildHaQuerySortClauseStr (Clause []*HaQuerySortClause) (_result *string) {
+  tempClauseString := tea.String("")
+  for _, SortClause := range Clause {
+    fieldValueTrimed := string_.Trim(SortClause.SortOrder)
+    keyFieldTrimed := string_.Trim(SortClause.SortKey)
+    if tea.BoolValue(util.EqualString(fieldValueTrimed, tea.String("+"))) || tea.BoolValue(util.EqualString(fieldValueTrimed, tea.String("-"))) {
+      if !tea.BoolValue(util.Empty(fieldValueTrimed)) && !tea.BoolValue(util.Empty(keyFieldTrimed)) {
+        if tea.BoolValue(util.Empty(tempClauseString)) {
+          tempClauseString = tea.String(tea.StringValue(fieldValueTrimed) + tea.StringValue(keyFieldTrimed))
+        } else {
+          tempClauseString = tea.String(tea.StringValue(tempClauseString) + ";" + tea.StringValue(fieldValueTrimed) + tea.StringValue(keyFieldTrimed))
+        }
+
+      }
+
+    }
+
+  }
+  _result = tempClauseString
+  return _result
+}
+
+func (client *Client) BuildHaQueryconfigClauseStr (Clause *HaQueryconfigClause) (_result *string, _err error) {
+  tempClauseString := tea.String("")
+  if tea.BoolValue(util.IsUnset(Clause)) {
+    _err = tea.NewSDKError(map[string]interface{}{
+      "name": "ParameterMissing",
+      "message": "'HaQueryconfigClause' can not be unset",
+    })
+    return _result, _err
+  }
+
+  if tea.BoolValue(util.IsUnset(Clause.Start)) {
+    Clause.Start = nil
+  }
+
+  if tea.BoolValue(util.IsUnset(Clause.Hit)) {
+    Clause.Hit = nil
+  }
+
+  if tea.BoolValue(util.IsUnset(Clause.Format)) {
+    Clause.Format = nil
+  }
+
+  tempClauseString = tea.String("start:" + tea.StringValue(util.DefaultString(Clause.Start, tea.String("0"))))
+  tempClauseString = tea.String(tea.StringValue(tempClauseString) + ",hit:" + tea.StringValue(util.DefaultString(Clause.Hit, tea.String("10"))))
+  tempClauseString = tea.String(tea.StringValue(tempClauseString) + ",format:" + tea.StringValue(string_.ToLower(util.DefaultString(Clause.Format, tea.String("json")))))
+  if !tea.BoolValue(util.IsUnset(Clause.CustomConfig)) {
+    for _, keyField := range map_.KeySet(Clause.CustomConfig) {
+      fieldValue := Clause.CustomConfig[tea.StringValue(keyField)]
+      if !tea.BoolValue(util.Empty(fieldValue)) {
+        fieldValueTrimed := string_.Trim(fieldValue)
+        keyFieldTrimed := string_.Trim(keyField)
+        if !tea.BoolValue(util.Empty(tempClauseString)) {
+          tempClauseString = tea.String(tea.StringValue(tempClauseString) + "," + tea.StringValue(keyFieldTrimed) + ":" + tea.StringValue(fieldValueTrimed))
+        } else {
+          tempClauseString = tea.String(tea.StringValue(keyFieldTrimed) + ":" + tea.StringValue(fieldValueTrimed))
+        }
+
+      }
+
+    }
+  }
+
+  _result = tempClauseString
+  return _result , _err
+}
+
+func (client *Client) BuildSQLSearchQuery (sqlquery *SQLQuery) (_result *string, _err error) {
+  if tea.BoolValue(util.IsUnset(sqlquery.Query)) {
+    _err = tea.NewSDKError(map[string]interface{}{
+      "name": "ParameterMissing",
+      "message": "'SQLQuery.query' can not be unset",
+    })
+    return _result, _err
+  }
+
+  tempString := tea.String("query=" + tea.StringValue(sqlquery.Query))
+  kvpairs := client.BuildSearcKvPairClauseStr(sqlquery.Kvpairs, tea.String(";"))
+  if !tea.BoolValue(util.Empty(kvpairs)) {
+    tempString = tea.String(tea.StringValue(tempString) + "&&kvpair=" + tea.StringValue(kvpairs))
+  }
+
+  _result = tempString
+  return _result , _err
+}
+
+func (client *Client) BuildSearcKvPairClauseStr (kvPair map[string]*string, separator *string) (_result *string) {
+  tempkvpairsString := tea.String("__ops_request_id:" + tea.StringValue(util.GetNonce()))
+  if !tea.BoolValue(util.IsUnset(kvPair)) {
+    for _, keyField := range map_.KeySet(kvPair) {
+      fieldValue := kvPair[tea.StringValue(keyField)]
+      if !tea.BoolValue(util.Empty(fieldValue)) {
+        fieldValueTrimed := string_.Trim(fieldValue)
+        keyFieldTrimed := string_.Trim(keyField)
+        tempkvpairsString = tea.String(tea.StringValue(tempkvpairsString) + tea.StringValue(separator) + tea.StringValue(keyFieldTrimed) + ":" + tea.StringValue(fieldValueTrimed))
+      }
+
+    }
+  }
+
+  _result = tempkvpairsString
+  return _result
+}
+
 // Description:
 //
-// 向量查询
-func (client *Client) Query (request *QueryRequest) (_result *SearchResponse, _err error) {
-  _result = &SearchResponse{}
-  _body, _err := client._request(tea.String("POST"), tea.String("/vector-service/query"), nil, nil, util.ToJSONString(request), client.RuntimeOptions)
+// 系统提供了丰富的搜索语法以满足用户各种场景下的搜索
+//
+// 支持ha3的query和sql查询语法
+//
+// 返回数据的body为String格式
+func (client *Client) Search (request *SearchRequestModel) (_result *SearchResponseModel, _err error) {
+  if tea.BoolValue(util.Empty(request.Method)) {
+    request.Method = tea.String("GET")
+  }
+
+  if !tea.BoolValue(util.EqualString(request.Method, tea.String("GET"))) && !tea.BoolValue(util.EqualString(request.Method, tea.String("POST"))) {
+    _err = tea.NewSDKError(map[string]interface{}{
+      "name": "MethodNotSupportedException",
+      "message": "method must be GET or POST",
+    })
+    return _result, _err
+  }
+
+  if tea.BoolValue(util.EqualString(request.Method, tea.String("GET"))) {
+    _result = &SearchResponseModel{}
+    _body, _err := client._request(request.Method, tea.String("/query"), tea.ToMap(request.Query), request.Headers, nil, client.RuntimeOptions)
+    if _err != nil {
+      return _result, _err
+    }
+    _err = tea.Convert(_body, &_result)
+    return _result, _err
+  }
+
+  if !tea.BoolValue(util.Empty(request.Query.Query)) {
+    queryBody := map[string]*string{
+      "assemblyQuery": request.Query.Query,
+    }
+    _result = &SearchResponseModel{}
+    _body, _err := client._request(request.Method, tea.String("/query"), nil, request.Headers, queryBody, client.RuntimeOptions)
+    if _err != nil {
+      return _result, _err
+    }
+    _err = tea.Convert(_body, &_result)
+    return _result, _err
+  } else {
+    sqlBody := map[string]*string{
+      "assemblyQuery": request.Query.Sql,
+    }
+    _result = &SearchResponseModel{}
+    _body, _err := client._request(request.Method, tea.String("/query?type=sql"), nil, request.Headers, sqlBody, client.RuntimeOptions)
+    if _err != nil {
+      return _result, _err
+    }
+    _err = tea.Convert(_body, &_result)
+    return _result, _err
+  }
+
+}
+
+// Description:
+//
+// 系统提供了丰富的搜索语法以满足用户各种场景下的搜索
+//
+// 支持ha3的json查询语法
+//
+// 返回数据的body为String格式
+func (client *Client) SearchRest (request *SearchRequestModel, indexName *string) (_result *SearchResponseModel, _err error) {
+  _result = &SearchResponseModel{}
+  _body, _err := client._request(tea.String("POST"), tea.String("/" + tea.StringValue(indexName) + "/search"), nil, request.Headers, request.Body, client.RuntimeOptions)
   if _err != nil {
     return _result, _err
   }
@@ -654,10 +1199,14 @@ func (client *Client) Query (request *QueryRequest) (_result *SearchResponse, _e
 
 // Description:
 //
-// 向量预测查询
-func (client *Client) InferenceQuery (request *QueryRequest) (_result *SearchResponse, _err error) {
-  _result = &SearchResponse{}
-  _body, _err := client._request(tea.String("POST"), tea.String("/vector-service/inference-query"), nil, nil, util.ToJSONString(request), client.RuntimeOptions)
+// 系统提供了丰富的搜索语法以满足用户各种场景下的搜索需求
+//
+// 支持ha3的query和sql查询语法
+//
+// 返回数据的body为byte[]格式
+func (client *Client) SearchBytes (request *SearchRequestModel) (_result *SearchBytesResponseModel, _err error) {
+  _result = &SearchBytesResponseModel{}
+  _body, _err := client._request_search_bytes(tea.String("GET"), tea.String("/query"), tea.ToMap(request.Query), request.Headers, nil, client.RuntimeOptions)
   if _err != nil {
     return _result, _err
   }
@@ -667,39 +1216,14 @@ func (client *Client) InferenceQuery (request *QueryRequest) (_result *SearchRes
 
 // Description:
 //
-// 多namespace查询
-func (client *Client) MultiQuery (request *MultiQueryRequest) (_result *SearchResponse, _err error) {
-  _result = &SearchResponse{}
-  _body, _err := client._request(tea.String("POST"), tea.String("/vector-service/multi-query"), nil, nil, util.ToJSONString(request), client.RuntimeOptions)
-  if _err != nil {
-    return _result, _err
-  }
-  _err = tea.Convert(_body, &_result)
-  return _result, _err
-}
-
-// Description:
+// 系统提供了丰富的搜索语法以满足用户各种场景下的搜索需求
 //
-// 查询数据
-func (client *Client) Fetch (request *FetchRequest) (_result *SearchResponse, _err error) {
-  _result = &SearchResponse{}
-  _body, _err := client._request(tea.String("POST"), tea.String("/vector-service/fetch"), nil, nil, util.ToJSONString(request), client.RuntimeOptions)
-  if _err != nil {
-    return _result, _err
-  }
-  _err = tea.Convert(_body, &_result)
-  return _result, _err
-}
-
-// Description:
+// 支持ha3的json查询语法
 //
-// 文档统计
-func (client *Client) Stats (tableName *string) (_result *SearchResponse, _err error) {
-  body := map[string]interface{}{
-    "tableName": tea.StringValue(tableName),
-  }
-  _result = &SearchResponse{}
-  _body, _err := client._request(tea.String("POST"), tea.String("/vector-service/stats"), nil, nil, util.ToJSONString(body), client.RuntimeOptions)
+// 返回数据的body为byte[]格式
+func (client *Client) SearchRestBytes (request *SearchRequestModel, indexName *string) (_result *SearchBytesResponseModel, _err error) {
+  _result = &SearchBytesResponseModel{}
+  _body, _err := client._request_search_bytes(tea.String("POST"), tea.String("/" + tea.StringValue(indexName) + "/search"), nil, request.Headers, request.Body, client.RuntimeOptions)
   if _err != nil {
     return _result, _err
   }
@@ -710,11 +1234,11 @@ func (client *Client) Stats (tableName *string) (_result *SearchResponse, _err e
 // Description:
 //
 // 支持新增、更新、删除 等操作，以及对应批量操作
-func (client *Client) PushDocuments (dataSourceName *string, keyField *string, request *PushDocumentsRequest) (_result *PushDocumentsResponse, _err error) {
+func (client *Client) PushDocuments (dataSourceName *string, keyField *string, request *PushDocumentsRequestModel) (_result *PushDocumentsResponseModel, _err error) {
   request.Headers = tea.Merge(map[string]*string{
     "X-Opensearch-Swift-PK-Field": keyField,
     },request.Headers)
-  _result = &PushDocumentsResponse{}
+  _result = &PushDocumentsResponseModel{}
   _body, _err := client._request(tea.String("POST"), tea.String("/update/" + tea.StringValue(dataSourceName) + "/actions/bulk"), nil, request.Headers, request.Body, client.RuntimeOptions)
   if _err != nil {
     return _result, _err
@@ -726,13 +1250,13 @@ func (client *Client) PushDocuments (dataSourceName *string, keyField *string, r
 // Description:
 //
 // 用于内网环境的新增、更新、删除 等操作，以及对应批量操作
-func (client *Client) PushDocumentsWithSwift (dataSourceName *string, keyField *string, topic *string, swift *string, request *PushDocumentsRequest) (_result *PushDocumentsResponse, _err error) {
+func (client *Client) PushDocumentsWithSwift (dataSourceName *string, keyField *string, topic *string, swift *string, request *PushDocumentsRequestModel) (_result *PushDocumentsResponseModel, _err error) {
   request.Headers = map[string]*string{
     "X-Opensearch-Swift-PK-Field": keyField,
     "X-Opensearch-Swift-Topic": topic,
     "X-Opensearch-Swift-Swift": swift,
   }
-  _result = &PushDocumentsResponse{}
+  _result = &PushDocumentsResponseModel{}
   _body, _err := client._request(tea.String("POST"), tea.String("/update/" + tea.StringValue(dataSourceName) + "/actions/bulk"), nil, request.Headers, request.Body, client.RuntimeOptions)
   if _err != nil {
     return _result, _err
