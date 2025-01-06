@@ -1,4 +1,4 @@
-module github.com/alibabacloud-go/ha3engine
+module github.com/aliyun/alibabacloud-ha3-go-sdk
 
 require (
 	github.com/alibabacloud-go/alibabacloud-ha3-util v0.0.1
