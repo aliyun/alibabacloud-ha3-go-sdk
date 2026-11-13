@@ -118,6 +118,8 @@ type QueryRequest struct {
   Order *string `json:"order,omitempty" xml:"order,omitempty"`
   // 查询参数
   SearchParams *string `json:"searchParams,omitempty" xml:"searchParams,omitempty"`
+  // 召回语句，不会切词
+  TextQueryString *string `json:"textQueryString,omitempty" xml:"textQueryString,omitempty"`
   // 过滤表达式
   Filter *string `json:"filter,omitempty" xml:"filter,omitempty"`
   // 分数过滤， 使用欧式距离时，只返回小于scoreThreshold的结果。使用内积时，只返回大于scoreThreshold的结果
@@ -134,6 +136,8 @@ type QueryRequest struct {
   VideoFrameTopK *int `json:"videoFrameTopK,omitempty" xml:"videoFrameTopK,omitempty"`
   // 多维排序，配置sorts后，结果中的score字段会变成多值字段，对应每一维排序的分数
   Sorts []*Sort `json:"sorts,omitempty" xml:"sorts,omitempty" type:"Repeated"`
+  // 仅 query 接口支持，是否只返回文档 ID，服务端默认 false
+  OnlyIds *bool `json:"onlyIds,omitempty" xml:"onlyIds,omitempty"`
 }
 
 func (s QueryRequest) String() string {
@@ -214,6 +218,11 @@ func (s *QueryRequest) SetSearchParams(v string) *QueryRequest {
   return s
 }
 
+func (s *QueryRequest) SetTextQueryString(v string) *QueryRequest {
+  s.TextQueryString = &v
+  return s
+}
+
 func (s *QueryRequest) SetFilter(v string) *QueryRequest {
   s.Filter = &v
   return s
@@ -251,6 +260,11 @@ func (s *QueryRequest) SetVideoFrameTopK(v int) *QueryRequest {
 
 func (s *QueryRequest) SetSorts(v []*Sort) *QueryRequest {
   s.Sorts = v
+  return s
+}
+
+func (s *QueryRequest) SetOnlyIds(v bool) *QueryRequest {
+  s.OnlyIds = &v
   return s
 }
 
@@ -3671,9 +3685,20 @@ func (client *Client) Query (request *QueryRequest) (_result *SearchResponse, _e
 // 
 // 向量预测查询
 func (client *Client) InferenceQuery (request *QueryRequest) (_result *SearchResponse, _err error) {
-  headers := client.GetHeadersFromRunTimeOption()
   _result = &SearchResponse{}
-  _body, _err := client._request(tea.String("POST"), tea.String("/vector-service/inference-query"), nil, headers, util.ToJSONString(request), client.RuntimeOptions)
+  _body, _err := client.InferenceQueryWithHeaders(request, nil)
+  if _err != nil {
+    return _result, _err
+  }
+  _result = _body
+  return _result, _err
+}
+
+func (client *Client) InferenceQueryWithHeaders (request *QueryRequest, headers map[string]*string) (_result *SearchResponse, _err error) {
+  requestHeaders := tea.Merge(client.GetHeadersFromRunTimeOption(),
+    headers)
+  _result = &SearchResponse{}
+  _body, _err := client._request(tea.String("POST"), tea.String("/vector-service/inference-query"), nil, requestHeaders, util.ToJSONString(request), client.RuntimeOptions)
   if _err != nil {
     return _result, _err
   }
@@ -3713,9 +3738,20 @@ func (client *Client) Fetch (request *FetchRequest) (_result *SearchResponse, _e
 // 
 // 文本向量混合检索
 func (client *Client) Search (request *SearchRequest) (_result *SearchResponse, _err error) {
-  headers := client.GetHeadersFromRunTimeOption()
   _result = &SearchResponse{}
-  _body, _err := client._request(tea.String("POST"), tea.String("/vector-service/search"), nil, headers, util.ToJSONString(request), client.RuntimeOptions)
+  _body, _err := client.SearchWithHeaders(request, nil)
+  if _err != nil {
+    return _result, _err
+  }
+  _result = _body
+  return _result, _err
+}
+
+func (client *Client) SearchWithHeaders (request *SearchRequest, headers map[string]*string) (_result *SearchResponse, _err error) {
+  requestHeaders := tea.Merge(client.GetHeadersFromRunTimeOption(),
+    headers)
+  _result = &SearchResponse{}
+  _body, _err := client._request(tea.String("POST"), tea.String("/vector-service/search"), nil, requestHeaders, util.ToJSONString(request), client.RuntimeOptions)
   if _err != nil {
     return _result, _err
   }
